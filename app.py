@@ -327,7 +327,7 @@ def browseai_extract(url: str, timeout: int = 20) -> Optional[str]:
 def fetch_cleaned_text(url: str, timeout: int = 20) -> str:
     global _BROWSEAI_LIMITED
     url = url.strip()
-    if BROWSEAI_API_KEY and not _BROWSEAI_LIMITED:
+    if BROWSEAI_API_KEY:
         try:
             remaining = browseai_get_remaining_credits(timeout=4)
             if remaining is not None and isinstance(remaining, int) and remaining <= 0:
