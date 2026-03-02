@@ -1,8 +1,8 @@
 # app.py
 """
 Extract — Streamlit single-file app with Scrapy fallback + reliable Lottie rendering via components.html
-- Replace OPENROUTER_API_KEY with your OpenRouter key (or set it in env / Streamlit secrets).
-- Optional: set BROWSEAI_API_KEY env var / secret to enable Browse AI extraction as the first attempt.
+- Replace OPENROUTER_API_KEY with your OpenRouter key (or set it in env).
+- Optional: set BROWSEAI_API_KEY env var to enable Browse AI extraction as the first attempt.
 - Install deps:
     pip install streamlit requests beautifulsoup4 lxml reportlab
     # optional: pip install scrapy
@@ -36,49 +36,17 @@ except Exception:
     REPORTLAB_AVAILABLE = False
 
 # -----------------------
-# CONFIG - load keys from Streamlit secrets or environment (DO NOT commit keys)
+# CONFIG - Put your key here (DO NOT commit publicly)
 # -----------------------
-# Recommended: set these in Streamlit app settings -> Secrets (TOML). See sample at bottom of this file.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
+JINA_PREFIX = "https://r.jina.ai/"
 
-def _read_secret(name: str) -> Optional[str]:
-    """
-    Return a secret by checking st.secrets (if available) then environment variables.
-    Handles both dict-like st.secrets and attribute access forms.
-    """
-    # Try st.secrets (works on Streamlit Cloud). st.secrets behaves like a dict.
-    try:
-        if hasattr(st, "secrets") and st.secrets:
-            # st.secrets may be a dict-like mapping
-            try:
-                val = st.secrets.get(name)
-            except Exception:
-                # older streamlit versions or different shape
-                val = None
-            if val:
-                return val
-    except Exception:
-        pass
-
-    # Fallback to environment variables
-    try:
-        env_val = os.getenv(name)
-        if env_val:
-            return env_val
-    except Exception:
-        pass
-
-    return None
-
-# Use the helper to load keys
-OPENROUTER_API_KEY = _read_secret("OPENROUTER_API_KEY")
-# Default Jina prefix (can be overridden by secret/environment JINA_PREFIX)
-JINA_PREFIX = _read_secret("JINA_PREFIX") or "https://r.jina.ai/"
-
-# BrowseAI configuration
-BROWSEAI_API_KEY = _read_secret("BROWSEAI_API_KEY")
-BROWSEAI_API_BASE = _read_secret("BROWSEAI_API_BASE") or "https://api.browse.ai"
-
-# NOTE: do NOT set keys directly in the file. Use Streamlit Secrets or environment variables.
+# -----------------------
+# Browse AI integration configuration
+# -----------------------
+BROWSEAI_API_KEY = os.getenv("a11d1a5a-35f5-40d3-9613-6969d20bfb12:a28d49aa-52de-4b5f-879d-c514374f07ae", None)
+BROWSEAI_API_BASE = os.getenv("BROWSEAI_API_BASE", "https://api.browse.ai")
+_BROWSEAI_LIMITED = False
 
 # -----------------------
 # Lottie public URLs
@@ -91,16 +59,8 @@ LOTTIE_SUCCESS = "https://assets2.lottiefiles.com/packages/lf20_jbrw3hcz.json"
 # Backend LLM + Crawl helpers
 # -----------------------
 def ask_openrouter(context: str, question: str, model: str = "nvidia/nemotron-3-nano-30b-a3b:free", timeout: int = 60) -> str:
-    """
-    Query OpenRouter chat completions endpoint.
-    Raises a RuntimeError with a helpful message when the key is missing or invalid.
-    """
-    if not OPENROUTER_API_KEY or (isinstance(OPENROUTER_API_KEY, str) and (OPENROUTER_API_KEY.strip() == "")):
-        raise RuntimeError("OpenRouter API key not configured. Please add OPENROUTER_API_KEY in Streamlit Secrets or environment variables.")
-
-    if isinstance(OPENROUTER_API_KEY, str) and (OPENROUTER_API_KEY.startswith("PASTE") or "REPLACE_WITH" in OPENROUTER_API_KEY):
-        raise RuntimeError("OpenRouter API key placeholder detected. Replace with your real key in Streamlit Secrets or environment variables.")
-
+    if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.startswith("PASTE") or "REPLACE_WITH" in OPENROUTER_API_KEY:
+        raise RuntimeError("OpenRouter API key not configured. Set OPENROUTER_API_KEY in environment or replace placeholder.")
     if context and len(context.strip()) > 80:
         system_msg = "You are a helpful assistant. Use the provided web content to answer the user's question accurately and concisely. Do not invent facts."
         user_content = f"Context content:\n{context}\n\nQuestion: {question}"
@@ -120,20 +80,10 @@ def ask_openrouter(context: str, question: str, model: str = "nvidia/nemotron-3-
         "max_tokens": 1200
     }
     headers = {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"}
-    try:
-        resp = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=timeout)
-    except requests.exceptions.RequestException as exc:
-        raise RuntimeError(f"OpenRouter request failed: {str(exc)}")
-
-    if resp.status_code == 401:
-        # Authentication failure — user/invalid key
-        raise RuntimeError("OpenRouter authentication failed (401). Check your OPENROUTER_API_KEY in Streamlit Secrets or environment variables; ensure it's valid and has permission to call the chosen model.")
+    resp = requests.post("https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers, timeout=timeout)
     if resp.status_code != 200:
         raise RuntimeError(f"OpenRouter error [{resp.status_code}]: {resp.text[:800]}")
-    try:
-        data = resp.json()
-    except Exception:
-        raise RuntimeError("OpenRouter returned a non-JSON response.")
+    data = resp.json()
     try:
         return data["choices"][0]["message"]["content"]
     except Exception:
@@ -348,7 +298,7 @@ def browseai_extract(url: str, timeout: int = 20) -> Optional[str]:
 def fetch_cleaned_text(url: str, timeout: int = 20) -> str:
     global _BROWSEAI_LIMITED
     url = url.strip()
-    if BROWSEAI_API_KEY:
+    if BROWSEAI_API_KEY and not _BROWSEAI_LIMITED:
         try:
             remaining = browseai_get_remaining_credits(timeout=4)
             if remaining is not None and isinstance(remaining, int) and remaining <= 0:
@@ -1200,7 +1150,6 @@ def main():
             try:
                 cleaned = fetch_cleaned_text(url, timeout=20)
                 time.sleep(0.5)
-                # If OPENROUTER_API_KEY is missing, the function raises a helpful error
                 answer = ask_openrouter(cleaned or "", question if question else "Provide main contact info and key staff.")
 
                 loader_ph.empty()
@@ -1243,12 +1192,7 @@ def main():
 
             except Exception as e:
                 loader_ph.empty()
-                # If it's an OpenRouter auth issue, show a more explicit UI hint
-                err_msg = str(e)
-                if "OpenRouter authentication failed" in err_msg or "OpenRouter error [401]" in err_msg:
-                    st.error("Extraction failed due to OpenRouter authentication. Check OPENROUTER_API_KEY in Streamlit Secrets (Manage app → Secrets).")
-                else:
-                    st.error("Extraction failed. Expand debug details for more info.")
+                st.error("Extraction failed. Expand debug details for more info.")
                 with st.expander("Debug details"):
                     st.exception(e)
             finally:
@@ -1293,3 +1237,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
