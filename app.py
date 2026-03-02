@@ -1,8 +1,8 @@
 # app.py
 """
 Extract — Streamlit single-file app with Scrapy fallback + reliable Lottie rendering via components.html
-- Replace OPENROUTER_API_KEY with your OpenRouter key (or set it in env).
-- Optional: set BROWSEAI_API_KEY env var to enable Browse AI extraction as the first attempt.
+- Replace OPENROUTER_API_KEY with your OpenRouter key (or set it in env / Streamlit secrets).
+- Optional: set BROWSEAI_API_KEY env var / secret to enable Browse AI extraction as the first attempt.
 - Install deps:
     pip install streamlit requests beautifulsoup4 lxml reportlab
     # optional: pip install scrapy
@@ -36,17 +36,46 @@ except Exception:
     REPORTLAB_AVAILABLE = False
 
 # -----------------------
-# CONFIG - Put your key here (DO NOT commit publicly)
+# CONFIG - load keys from Streamlit secrets or environment (DO NOT commit keys)
 # -----------------------
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
-JINA_PREFIX = "https://r.jina.ai/"
+# Recommended: set these in Streamlit app settings -> Secrets (TOML). See sample at bottom of this reply.
 
-# -----------------------
-# Browse AI integration configuration
-# -----------------------
-BROWSEAI_API_KEY = os.getenv("a11d1a5a-35f5-40d3-9613-6969d20bfb12:a28d49aa-52de-4b5f-879d-c514374f07ae", None)
-BROWSEAI_API_BASE = os.getenv("BROWSEAI_API_BASE", "https://api.browse.ai")
-_BROWSEAI_LIMITED = False
+# Load OpenRouter key (first try Streamlit secrets, then environment variable)
+OPENROUTER_API_KEY = None
+try:
+    # st.secrets acts like a dict() on Streamlit Cloud; safe to use .get() locally too
+    OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY") if isinstance(st.secrets, dict) or hasattr(st, "secrets") else None
+except Exception:
+    OPENROUTER_API_KEY = None
+if not OPENROUTER_API_KEY:
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+# Jina prefix (allow override via secrets/env)
+try:
+    JINA_PREFIX = st.secrets.get("JINA_PREFIX", "https://r.jina.ai/")
+except Exception:
+    JINA_PREFIX = os.getenv("JINA_PREFIX", "https://r.jina.ai/")
+
+# BrowseAI API key and base (load from secrets/env)
+BROWSEAI_API_KEY = None
+try:
+    BROWSEAI_API_KEY = st.secrets.get("BROWSEAI_API_KEY")
+except Exception:
+    BROWSEAI_API_KEY = None
+if not BROWSEAI_API_KEY:
+    BROWSEAI_API_KEY = os.getenv("BROWSEAI_API_KEY")
+
+try:
+    BROWSEAI_API_BASE = st.secrets.get("BROWSEAI_API_BASE", None)
+except Exception:
+    BROWSEAI_API_BASE = None
+if not BROWSEAI_API_BASE:
+    BROWSEAI_API_BASE = os.getenv("BROWSEAI_API_BASE", "https://api.browse.ai")
+
+# Note: do not hard-code sensitive keys in code. Add them to Streamlit Secrets instead:
+# OPENROUTER_API_KEY = "sk-or-..."
+# BROWSEAI_API_KEY = "..."
+# BROWSEAI_API_BASE = "https://api.browse.ai"
 
 # -----------------------
 # Lottie public URLs
@@ -59,8 +88,8 @@ LOTTIE_SUCCESS = "https://assets2.lottiefiles.com/packages/lf20_jbrw3hcz.json"
 # Backend LLM + Crawl helpers
 # -----------------------
 def ask_openrouter(context: str, question: str, model: str = "nvidia/nemotron-3-nano-30b-a3b:free", timeout: int = 60) -> str:
-    if not OPENROUTER_API_KEY or OPENROUTER_API_KEY.startswith("PASTE") or "REPLACE_WITH" in OPENROUTER_API_KEY:
-        raise RuntimeError("OpenRouter API key not configured. Set OPENROUTER_API_KEY in environment or replace placeholder.")
+    if not OPENROUTER_API_KEY or (isinstance(OPENROUTER_API_KEY, str) and (OPENROUTER_API_KEY.startswith("PASTE") or "REPLACE_WITH" in OPENROUTER_API_KEY)):
+        raise RuntimeError("OpenRouter API key not configured. Set OPENROUTER_API_KEY in Streamlit Secrets or environment variable.")
     if context and len(context.strip()) > 80:
         system_msg = "You are a helpful assistant. Use the provided web content to answer the user's question accurately and concisely. Do not invent facts."
         user_content = f"Context content:\n{context}\n\nQuestion: {question}"
