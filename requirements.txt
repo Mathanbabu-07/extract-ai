@@ -1,3 +1,5 @@
+streamlit
+requests
 beautifulsoup4
-BeautifulSoup
-bs4
+openai
+scrapy
