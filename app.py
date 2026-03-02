@@ -38,7 +38,7 @@ except Exception:
 # -----------------------
 # CONFIG - Put your key here (DO NOT commit publicly)
 # -----------------------
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
 JINA_PREFIX = "https://r.jina.ai/"
 
 # -----------------------
