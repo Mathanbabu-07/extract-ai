@@ -10,6 +10,8 @@ Extract — Streamlit single-file app with Scrapy fallback + reliable Lottie ren
     python -m streamlit run app.py
 """
 import os
+from dotenv import load_dotenv
+load_dotenv()  # loads .env file from the project directory
 import time
 import tempfile
 import subprocess
@@ -36,15 +38,15 @@ except Exception:
     REPORTLAB_AVAILABLE = False
 
 # -----------------------
-# CONFIG - Put your key here (DO NOT commit publicly)
+# CONFIG — all keys loaded from .env file (never hardcode here)
 # -----------------------
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")  # set in .env
 JINA_PREFIX = "https://r.jina.ai/"
 
 # -----------------------
 # Browse AI integration configuration
 # -----------------------
-BROWSEAI_API_KEY = os.getenv("a11d1a5a-35f5-40d3-9613-6969d20bfb12:a28d49aa-52de-4b5f-879d-c514374f07ae", None)
+BROWSEAI_API_KEY = os.getenv("BROWSEAI_API_KEY", None)
 BROWSEAI_API_BASE = os.getenv("BROWSEAI_API_BASE", "https://api.browse.ai")
 _BROWSEAI_LIMITED = False
 
@@ -1127,9 +1129,9 @@ def main():
         st.markdown('<div class="form-row">', unsafe_allow_html=True)
         cols = st.columns([4, 6, 2])
         with cols[0]:
-            url = st.text_input("", placeholder="https://www.example-college.edu/mandatory/IQAC.php", key="url")
+            url = st.text_input("URL", placeholder="https://www.example-college.edu/mandatory/IQAC.php", key="url", label_visibility="hidden")
         with cols[1]:
-            question = st.text_input("", placeholder="e.g. 'give the fax no', 'list placement officers'", key="question")
+            question = st.text_input("Question", placeholder="e.g. 'give the fax no', 'list placement officers'", key="question", label_visibility="hidden")
         with cols[2]:
             submit = st.form_submit_button("⚡ Extract")
         st.markdown('</div>', unsafe_allow_html=True)
