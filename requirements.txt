@@ -1,5 +1,8 @@
 streamlit
 requests
 beautifulsoup4
+lxml
 openai
 scrapy
+python-dotenv
+reportlab

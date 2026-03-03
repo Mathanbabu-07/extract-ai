@@ -10,8 +10,11 @@ Extract — Streamlit single-file app with Scrapy fallback + reliable Lottie ren
     python -m streamlit run app.py
 """
 import os
-from dotenv import load_dotenv
-load_dotenv()  # loads .env file from the project directory
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # loads .env locally; no-op on Streamlit Cloud
+except ImportError:
+    pass  # Streamlit Cloud injects secrets as env vars automatically
 import time
 import tempfile
 import subprocess
